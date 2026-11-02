@@ -1901,7 +1901,7 @@ function renderShipTable(){
   </tbody></table>`;
 }
 function fillShipAll(code){
-  const g = shipGroups(document.getElementById('sp_project').value).find(x=>x.code===code);
+  const g = shipGroups(document.getElementById('sp_project').value).find(x=>String(x.code)===String(code));
   const inp = document.querySelector(`.sp-qty[data-code="${code}"]`);
   if(g && inp){ inp.value = g.avail; updateShipSummary(); }
 }
@@ -1917,7 +1917,7 @@ async function submitShip(){
   const entries = [], detail = [];
   for(const inp of document.querySelectorAll('.sp-qty')){
     const q = Number(inp.value)||0; if(q<=0) continue;
-    const g = groups.find(x=>x.code===inp.dataset.code);
+    const g = groups.find(x=>String(x.code)===String(inp.dataset.code)); // Mã VT Vestas là số → so sánh dạng chuỗi
     if(!g || q>g.avail+1e-9){ setMsg('msg-ship', `Mã ${inp.dataset.code}: tàu lấy ${fmtNum(q)} nhưng chỉ còn ${fmtNum(g?g.avail:0)} có thể xuất (đã trừ phần chờ duyệt)`, false); return; }
     let need = q; const parts = [];
     g.lines.filter(x=>x.status==='Đã xuất' && x.avail>0).forEach(ln=>{
