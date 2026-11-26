@@ -171,11 +171,11 @@
     </div>
     <label>Khách hàng <span class="req">*</span></label>
     <select id="n_customer" onchange="onCustomerChange('n')" required><option value="">— Chọn khách hàng —</option></select>
-    <label>Mã số dự án</label><select id="n_project"><option value="">— Chọn khách hàng trước —</option></select>
     <label>Ghi chú chung cho cả phiếu</label><textarea id="n_remark" rows="2"></textarea>
 
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
     <h3 style="font-size:16px;">➕ Thêm mã vật tư vào phiếu</h3>
+    <label>Mã số dự án <span class="sub" style="margin:0;">— của mã vật tư này (1 phiếu có thể nhiều dự án: đổi dự án rồi thêm mã tiếp)</span></label><select id="n_project"><option value="">— Chọn khách hàng trước —</option></select>
     <label>Mã vật tư <span class="req">*</span></label>
     <select id="n_code" onchange="onItemChange('n')" required><option value="">— Chọn khách hàng trước —</option></select>
     <div class="sub" id="n_itemInfo"></div>
@@ -1391,12 +1391,13 @@ function addToNhapCart(){
   const slCu = Number(document.getElementById('n_slCu').value)||0;
   const tong = slMoi+slCu;
   if(tong<=0){ setMsg('msg-nhap','Tổng số lượng mã này phải lớn hơn 0', false); return; }
-  const it = { code, desc: item?item['Tên Vật Tư']:'', drawing: item?item['Tên Bản Vẽ / Spec']:'', slMoi, slCu, tong };
+  const projectCode = document.getElementById('n_project').value || '';
+  const it = { code, projectCode, desc: item?item['Tên Vật Tư']:'', drawing: item?item['Tên Bản Vẽ / Spec']:'', slMoi, slCu, tong };
   let tongLoc = 0;
   DB.locations.forEach(l=>{ const v=Number(document.getElementById('n_loc_'+l).value)||0; it['loc_'+l]=v; tongLoc+=v; });
   if(tongLoc!==tong){ setMsg('msg-nhap', `Tổng theo Nơi lưu trữ (${tongLoc}) phải bằng Tổng số lượng (${tong})`, false); return; }
   nhapCart.push(it);
-  setMsg('msg-nhap', `✓ Đã thêm ${code} (${fmtNum(tong)}) vào phiếu — chọn mã tiếp theo hoặc bấm Lưu phiếu nhập`, true);
+  setMsg('msg-nhap', `✓ Đã thêm ${code} (${fmtNum(tong)})${projectCode?' — dự án '+projectCode:''} vào phiếu — chọn mã tiếp theo hoặc bấm Lưu phiếu nhập`, true);
   document.getElementById('n_code').value='';
   onItemChange('n');
   document.getElementById('n_slMoi').value=''; document.getElementById('n_slCu').value='';
@@ -1436,12 +1437,12 @@ function renderNhapCart(){
   const box = document.getElementById('n_cartBox');
   if(!nhapCart.length){ box.innerHTML = '<div class="sub">Chưa có mã vật tư nào trong phiếu.</div><div id="n_cartDraft"></div>'; updateCartDraft('n'); return; }
   box.innerHTML = `<div class="sub" style="margin-bottom:2px;">📦 Danh sách mã vật tư trong phiếu (${nhapCart.length}):</div>
-    <table class="carttable"><thead><tr><th>Mã VT</th><th>Kho</th><th>SL</th><th></th></tr></thead><tbody>
+    <table class="carttable"><thead><tr><th>Mã VT</th><th>Dự án</th><th>Kho</th><th>SL</th><th></th></tr></thead><tbody>
     ${nhapCart.map((it,i)=>{
       const locStr = DB.locations.filter(l=>it['loc_'+l]>0).map(l=>`${l}:${fmtNum(it['loc_'+l])}`).join(', ');
-      return `<tr><td><b>${it.code}</b></td><td style="font-size:13px;">${locStr}</td><td>${fmtNum(it.tong)}</td><td class="rm" onclick="removeFromNhapCart(${i})">✕</td></tr>`;
+      return `<tr><td><b>${it.code}</b></td><td style="font-size:12px;">${it.projectCode||'—'}</td><td style="font-size:13px;">${locStr}</td><td>${fmtNum(it.tong)}</td><td class="rm" onclick="removeFromNhapCart(${i})">✕</td></tr>`;
     }).join('')}
-    </tbody>${cartTotalRowHtml(nhapCart, 4)}</table><div id="n_cartDraft"></div>`;
+    </tbody>${cartTotalRowHtml(nhapCart, 5)}</table><div id="n_cartDraft"></div>`;
   updateCartDraft('n');
 }
 async function submitNhapBatch(){
@@ -1453,7 +1454,7 @@ async function submitNhapBatch(){
   if(!billArrivalMap()[billVal]){ setMsg('msg-nhap','Số Bill "'+billVal+'" chưa có trong sổ của Logistics — chọn từ gợi ý hoặc nhờ Logistics nhập trước', false); return; }
   const payload = {
     date: document.getElementById('n_date').value || todayStr(),
-    soBill: document.getElementById('n_bill').value, projectCode: document.getElementById('n_project').value,
+    soBill: document.getElementById('n_bill').value,
     customer, remark: document.getElementById('n_remark').value,
     items: nhapCart
   };
@@ -1515,7 +1516,7 @@ function openNhapEdit(maPhieu){
   if(!rows.length){ alert('Không tìm thấy phiếu '+maPhieu+' — bấm Reload rồi thử lại'); return; }
   const h = rows[0];
   nhapEdit = { maPhieu, customer:h['Khách Hàng']||'', lines: rows.map(r=>({
-    id:r['Mã GD'], code:String(r['Mã Vật Tư']), slMoi:Number(r['SL Mới'])||0, slCu:Number(r['SL Đã Qua Sử Dụng'])||0,
+    id:r['Mã GD'], code:String(r['Mã Vật Tư']), project:String(r['Mã Dự Án']||''), slMoi:Number(r['SL Mới'])||0, slCu:Number(r['SL Đã Qua Sử Dụng'])||0,
     loc:Object.fromEntries(DB.locations.map(l=>[l, Number(r[l])||0])), del:false })) };
   let ov = document.getElementById('nhapEditOv'); if(ov) ov.remove();
   ov = document.createElement('div'); ov.id='nhapEditOv';
@@ -1530,7 +1531,6 @@ function openNhapEdit(maPhieu){
         <div class="sub" id="ne_billInfo" style="margin:3px 0 0;"></div></div>
     </div>
     <label>Khách hàng <span class="req">*</span></label><select id="ne_customer" onchange="neCustomerChange()"></select>
-    <label>Mã số dự án</label><select id="ne_project"></select>
     <label>Ghi chú chung cho cả phiếu</label><textarea id="ne_remark" rows="2"></textarea>
     <hr style="border:none;border-top:1px solid var(--border);margin:14px 0;">
     <div id="ne_lines"></div>
@@ -1542,24 +1542,20 @@ function openNhapEdit(maPhieu){
   document.body.appendChild(ov);
   document.getElementById('ne_customer').innerHTML = DB.customers.map(c=>`<option value="${c['Tên Khách Hàng']}">${c['Tên Khách Hàng']}</option>`).join('');
   document.getElementById('ne_customer').value = nhapEdit.customer;
-  makeCodeCombo('ne_project', PROJECT_COMBO);
-  neFillProjects(String(h['Mã Dự Án']||''));
   document.getElementById('ne_remark').value = h['Ghi Chú']||'';
   neBillInfo(); renderNhapEditLines();
 }
 function closeNhapEdit(){ const ov=document.getElementById('nhapEditOv'); if(ov) ov.remove(); nhapEdit=null; }
-function neFillProjects(cur){
-  const cust = document.getElementById('ne_customer').value;
-  const projs = DB.projects.filter(p=>p['Khách Hàng']===cust);
-  const sel = document.getElementById('ne_project');
-  sel.innerHTML = '<option value="">— Không chọn —</option>' + projs.map(p=>`<option value="${p['Mã Dự Án']}">${p['Mã Dự Án']} — ${p['Tên Dự Án']||''}</option>`).join('');
-  if(cur && !projs.some(p=>String(p['Mã Dự Án'])===cur)) sel.innerHTML += `<option value="${cur}">${cur}</option>`;
-  sel.value = cur||'';
+function neProjectOptions(cur){
+  const projs = DB.projects.filter(p=>p['Khách Hàng']===nhapEdit.customer);
+  let o = '<option value="">— Không chọn —</option>' + projs.map(p=>`<option value="${p['Mã Dự Án']}"${String(p['Mã Dự Án'])===cur?' selected':''}>${p['Mã Dự Án']} — ${p['Tên Dự Án']||''}</option>`).join('');
+  if(cur && !projs.some(p=>String(p['Mã Dự Án'])===cur)) o += `<option value="${cur}" selected>${cur}</option>`;
+  return o;
 }
 function neCustomerChange(){
   neSyncLines();
   nhapEdit.customer = document.getElementById('ne_customer').value;
-  neFillProjects('');
+  nhapEdit.lines.forEach(l=>{ l.project=''; });
   nhapEdit.lines.forEach(l=>{ if(!DB.items.some(i=>i['Khách Hàng']===nhapEdit.customer && String(i['Mã Vật Tư'])===l.code)) l.code=''; });
   renderNhapEditLines();
 }
@@ -1575,7 +1571,7 @@ function neSyncLines(){
   nhapEdit.lines.forEach((l,i)=>{
     const g = id=>document.getElementById(id);
     if(!g('ne_code_'+i)) return;
-    l.code = g('ne_code_'+i).value; l.slMoi = Number(g('ne_moi_'+i).value)||0; l.slCu = Number(g('ne_cu_'+i).value)||0;
+    l.project = g('ne_proj_'+i).value; l.code = g('ne_code_'+i).value; l.slMoi = Number(g('ne_moi_'+i).value)||0; l.slCu = Number(g('ne_cu_'+i).value)||0;
     DB.locations.forEach(loc=>{ l.loc[loc] = Number(g(`ne_loc_${i}_${loc}`).value)||0; });
     l.del = g('ne_del_'+i).checked;
   });
@@ -1593,6 +1589,7 @@ function renderNhapEditLines(){
     const opts = '<option value="">— Chọn mã vật tư —</option>' + items.map(it=>`<option value="${it['Mã Vật Tư']}"${String(it['Mã Vật Tư'])===l.code?' selected':''}>${it['Mã Vật Tư']} — ${it['Tên Vật Tư']||''}</option>`).join('');
     return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:10px;${l.del?'opacity:.5;':''}">
       <div class="sub" style="margin:0 0 4px;">Dòng ${i+1} · ${l.id}</div>
+      <label>Mã số dự án</label><select id="ne_proj_${i}">${neProjectOptions(l.project||'')}</select>
       <label>Mã vật tư</label><select id="ne_code_${i}">${opts}</select>
       <div class="row2"><div><label>SL Mới</label><input type="number" min="0" id="ne_moi_${i}" value="${l.slMoi||''}" placeholder="0" inputmode="decimal" oninput="neLineTotals(${i})"></div>
         <div><label>SL Đã qua sử dụng</label><input type="number" min="0" id="ne_cu_${i}" value="${l.slCu||''}" placeholder="0" inputmode="decimal" oninput="neLineTotals(${i})"></div></div>
@@ -1622,9 +1619,9 @@ async function saveNhapEdit(){
   setMsg('msg-ne','Đang lưu...', true);
   const r = await apiPost('updateNhapBatch', {
     maPhieu: nhapEdit.maPhieu, date: document.getElementById('ne_date').value, soBill: bill,
-    customer: document.getElementById('ne_customer').value, projectCode: document.getElementById('ne_project').value,
+    customer: document.getElementById('ne_customer').value,
     remark: document.getElementById('ne_remark').value,
-    lines: nhapEdit.lines.map(l=>{ const o = {id:l.id, code:l.code, slMoi:l.slMoi, slCu:l.slCu, del:l.del}; DB.locations.forEach(loc=>{ o['loc_'+loc] = l.loc[loc]||0; }); return o; })
+    lines: nhapEdit.lines.map(l=>{ const o = {id:l.id, code:l.code, projectCode:l.project||'', slMoi:l.slMoi, slCu:l.slCu, del:l.del}; DB.locations.forEach(loc=>{ o['loc_'+loc] = l.loc[loc]||0; }); return o; })
   });
   btn.disabled = false;
   if(!r.ok){ setMsg('msg-ne','Lỗi: '+r.error, false); return; }
